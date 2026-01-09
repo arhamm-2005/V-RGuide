@@ -1,0 +1,23 @@
+package com.example.V_RGUIDE.model;
+
+import lombok.Data;
+import lombok.Setter;
+import lombok.AccessLevel;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.index.Indexed;
+
+@Data
+@Document(collection = "users")
+public abstract class User {
+    @Id
+    // This allows MongoDB to set the ID, but makes it "Immutable" for the rest of your app code
+    @Setter(AccessLevel.PRIVATE) 
+    private String id;
+    
+    private String name;
+    @Indexed(unique = true)
+    private String email;
+    private String password;
+    private String role;
+}
