@@ -28,13 +28,13 @@ public class AppointmentService {
         // Check if counsellor already has a booking at this time
         boolean exists = appointmentRepository.findByCounsellorEmail(appointment.getCounsellorEmail())
             .stream()
-            .anyMatch(a -> a.getStartTime().equals(appointment.getStartTime()));
+            .anyMatch(a -> a.getStatus().equals(appointment.getStatus()));
 
         if (exists) {
             return "Error: This slot is already booked!";
         }
 
         appointmentRepository.save(appointment);
-        return "Appointment booked for 1 hour: " + appointment.getStartTime() + " to " + appointment.getEndTime();
+        return "Appointment booked for 1 hour: " + appointment.getStatus() + " to " + appointment.getEndTime();
     }
 }

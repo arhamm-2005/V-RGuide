@@ -93,4 +93,15 @@ public List<Counsellor> viewCounsellorsByStatus(@PathVariable String status) {
 public String reject(@PathVariable String email) {
     return userService.rejectCounsellor(email);
 }
+//@Autowired
+    //private UserService userService;
+
+  //  @Autowired // This belongs here, above the field
+    //private UserService userService;
+
+    // DO NOT put @Autowired here!
+    @PutMapping("/approve-counsellor/{email}")
+    public String approveCounsellor(@PathVariable String email) {
+        return userService.approveCounsellor(email);
+    }
 }

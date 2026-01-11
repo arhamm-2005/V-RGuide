@@ -1,5 +1,6 @@
 package com.example.V_RGUIDE.service;
 
+import com.example.V_RGUIDE.model.Appointment;
 import com.example.V_RGUIDE.model.Counsellor;
 import com.example.V_RGUIDE.model.Student;
 import com.example.V_RGUIDE.model.User;
@@ -7,10 +8,11 @@ import com.example.V_RGUIDE.repository.UserRepository;
 import com.example.V_RGUIDE.repository.AppointmentRepository;
 import com.example.V_RGUIDE.exception.UserNotFoundException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -106,7 +108,7 @@ public class UserService {
         // This demonstrates joining information from different sources (ADTs)
         return appointmentRepository.findAll().stream()
                 .map(app -> "Student [" + app.getStudentEmail() + "] has a session with ["
-                        + app.getCounsellorEmail() + "] at " + app.getStartTime())
+                        + app.getCounsellorEmail() + "] at " + app.getStatus())
                 .toList();
     }
     // UserService.java
@@ -178,4 +180,104 @@ public String rejectCounsellor(String email) {
     }
     throw new UserNotFoundException("Counsellor not found.");
 }
+// UserService.java
+
+public User registerCounsellor(Counsellor counsellor) {
+    // Check if user already exists
+    if (userRepository.findByEmail(counsellor.getEmail()) != null) {
+        throw new RuntimeException("Email already registered!");
+    }
+    
+    // Ensure the role and status are strictly set
+    counsellor.setRole("COUNSELLOR");
+    counsellor.setStatus("PENDING");
+    
+    return userRepository.save(counsellor);
 }
+// UserService.java
+
+public String postWeeklySchedule(String email, Map<String, List<String>> newSchedule) {
+    User user = userRepository.findByEmail(email);
+    
+    if (user instanceof Counsellor counsellor) {
+        // This takes your JSON and saves it directly to the counsellor's profile
+        counsellor.setWeeklySchedule(newSchedule);
+        userRepository.save(counsellor);
+        return "Weekly schedule posted successfully!";
+    }
+    return "Counsellor not found.";
+}
+// UserService.java
+
+@Async // This runs the notification in a separate concurrency thread
+public void notifyStudent(String studentEmail, String details) {
+    try {
+        Thread.sleep(2000); // Simulating email delay
+        System.out.println("[ASYNC THREAD] Notification sent to " + studentEmail + ": " + details);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }
+}
+
+public String cancelAppointment(String appointmentId) {
+    Optional<Appointment> apptOpt = appointmentRepository.findById(appointmentId);
+    
+    if (apptOpt.isPresent()) {
+        Appointment appt = apptOpt.get();
+        
+        // 1. Restore the slot to the Counsellor
+        User user = userRepository.findByEmail(appt.getCounsellorEmail());
+        if (user instanceof Counsellor counsellor) {
+            Map<String, List<String>> schedule = counsellor.getWeeklySchedule();
+            String day = appt.getAppointmentDate();
+            
+            // Add the slot back to the list for that day
+            schedule.computeIfAbsent(day, k -> new ArrayList<>()).add(appt.getTimeSlot());
+            userRepository.save(counsellor);
+        }
+
+        // 2. Trigger the Notification (Asynchronous)
+        notifyStudent(appt.getStudentEmail(), "Your appointment on " + appt.getAppointmentDate() + " has been cancelled.");
+
+        // 3. Delete the record
+        appointmentRepository.deleteById(appointmentId);
+        
+        return "Appointment cancelled and slot restored.";
+    }
+    return "Appointment not found.";
+}
+
+// public String processBooking(String string, String string2, String string3, String string4) {
+//     // TODO Auto-generated method stub
+//     throw new UnsupportedOperationException("Unimplemented method 'processBooking'");
+// }
+// UserService.java
+
+public String processBooking(String student, String counsellorEmail, String day, String slot) {
+    User user = userRepository.findByEmail(counsellorEmail);
+    
+    if (user instanceof Counsellor counsellor) {
+        Map<String, List<String>> schedule = counsellor.getWeeklySchedule();
+        
+        if (schedule != null && schedule.containsKey(day) && schedule.get(day).contains(slot)) {
+            
+            // 1. Remove the slot from the counsellor
+            schedule.get(day).remove(slot);
+            userRepository.save(counsellor);
+
+            // 2. Create the Appointment Object
+            Appointment appt = new Appointment();
+            appt.setStudentEmail(student);
+            appt.setCounsellorEmail(counsellorEmail);
+            appt.setAppointmentDate(day);
+            appt.setTimeSlot(slot);
+            appt.setStatus("BOOKED");
+
+            // 3. Save to database
+            appointmentRepository.save(appt);
+            
+            return "Success: Appointment booked for " + day + " at " + slot;
+        }
+    }
+    return "Error: Slot not available.";
+}}
